@@ -5,17 +5,23 @@ FROM php:8.4-cli-alpine AS builder
 
 WORKDIR /app
 
-# Copy Composer binary from official image
+# Copy Composer & PHP extension installer binaries
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+COPY --from=ghcr.io/mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
 
-# Install system dependencies, Node.js, npm, git, unzip
+# Install system dependencies, Node.js, npm, git, unzip, and essential PHP extensions
 RUN apk add --no-cache \
     nodejs \
     npm \
     git \
     unzip \
     libzip-dev \
-    icu-dev
+    icu-dev \
+    && install-php-extensions \
+    bcmath \
+    intl \
+    zip \
+    pdo_sqlite
 
 # Copy dependency manifests
 COPY composer.json composer.lock package.json package-lock.json ./
@@ -29,8 +35,8 @@ RUN npm ci
 # Copy full application codebase (required for Wayfinder route compilation & Vite build)
 COPY . .
 
-# Generate optimized Composer autoloader
-RUN composer dump-autoload --optimize --no-dev
+# Generate optimized Composer autoloader without running artisan scripts during build
+RUN composer dump-autoload --optimize --no-dev --no-scripts
 
 # Build frontend static assets via Vite
 RUN npm run build
